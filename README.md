@@ -1,5 +1,7 @@
 # AI-Bolit
 
+The AI-Bolit scanner is probably the most effective tool for webmasters and site administrators to search for viruses and malicious code
+
 ## How to operate the AI-BOLIT scanner from the command line
 
 > ⚠ Order site treatment and protection against hacking from [experts](https://palpalych.ru/).
