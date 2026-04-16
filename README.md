@@ -72,3 +72,7 @@ Batch scan of multiple site roots (Linux / macOS):
 ```bash
 find /var/www/user/data/www -maxdepth 1 -type d -exec php ai-bolit.php --path={} --mode=2 \;
 ```
+
+---
+
+Репозиторий и документация поддерживаются **[студией Павла Сайка](https://palpalych.ru/)** — разработка сайтов, SEO и сопровождение проектов.
