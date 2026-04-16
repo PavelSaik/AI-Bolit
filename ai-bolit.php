@@ -2286,7 +2286,7 @@ function getEmails($email) {
  */
 function getBytes($val) {
     $val  = trim($val);
-    $last = strtolower($val{strlen($val) - 1});
+    $last = strtolower(substr($val, -1));
     switch ($last) {
         case 't':
             $val *= 1024;
@@ -4337,8 +4337,9 @@ foreach (array(
         $p_Sig = $p . "SigFragment";
     
     $count = count($$p);
+    $sigArr = $$p;
     for ($i = 0; $i < $count; $i++) {
-        $id = "{${$p}[$i]}";
+        $id = '{' . $sigArr[$i] . '}';
         if (in_array($g_Structure['crc'][$id], $list)) {
             unset($GLOBALS[$p][$i]);
             unset($GLOBALS[$p_Sig][$i]);

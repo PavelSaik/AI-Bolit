@@ -2,31 +2,75 @@
 error_reporting(-1);
 ini_set('display_errors', 1);
 
-define("ROOT_DIR", __DIR__ . '/art-talant.org'); // начальный путь сканирования
+$configPath = __DIR__ . '/scanner.config.php';
+if (!is_readable($configPath)) {
+	$msg = 'Создайте scanner.config.php на основе scanner.config.example.php (см. README).';
+	if (PHP_SAPI === 'cli') {
+		fwrite(STDERR, $msg . PHP_EOL);
+	} else {
+		header('Content-Type: text/plain; charset=utf-8', true, 500);
+		echo $msg;
+	}
+	exit(1);
+}
 
-/*Конфигурация базы данных*/
-define("DB_NAME", 'art-talant');
-define("USER", 'art-talant');
-define("PASSWORD", '6G1v0Z5w');
-define("HOST", 'localhost');
+$config = require $configPath;
+if (!is_array($config)) {
+	throw new LogicException('scanner.config.php должен возвращать массив настроек.');
+}
 
-define("EXCLUDED_DIRS", 'components/com_mtree/attachments,tmp/works,downlads,downloads,logs,images/contacts,media/thumb/imagecache,resized/mtree/'); // исключения, список путей к деректориям относительно этого файла, указанных через запятую
-define("DEPTH_LEVEL", 0); // (int) глубина сканирования, 0 - без ограничений
-define("FILES_EXTENSION", 'php,js,html'); // расширения файлов, через запятую
+$config = array_merge(
+	[
+		'excluded_dirs'      => '',
+		'depth_level'        => 0,
+		'files_extension'    => 'php,js,html',
+		'dirs_table_name'    => 'scanner_dirs',
+		'files_table_name'   => 'scanner_files',
+		'email'              => '',
+		'smtp_username'      => '',
+		'smtp_port'          => 25,
+		'smtp_host'          => '',
+		'smtp_password'      => '',
+		'smtp_debug'         => false,
+		'smtp_charset'       => 'utf-8',
+		'smtp_from'          => 'Сканер файлов',
+		'email_subject'      => 'Изменения на сайте',
+	],
+	$config
+);
 
-define("DIRS_TABLE_NAME", 'scanner_dirs'); //название таблицы с директориями
-define("FILES_TABLE_NAME", 'scanner_files'); //название таблицы с файлами
+foreach (['root_dir', 'db_name', 'db_user', 'db_host'] as $requiredKey) {
+	if (!array_key_exists($requiredKey, $config) || $config[$requiredKey] === '' || $config[$requiredKey] === null) {
+		throw new LogicException('В scanner.config.php задайте непустое значение: ' . $requiredKey);
+	}
+}
+if (!array_key_exists('db_password', $config)) {
+	throw new LogicException('В scanner.config.php отсутствует ключ db_password.');
+}
 
-define("EMAIL", 'ya@palpalych.ru'); // Email адрес на которой отправлять результат, если не хотите уведомлений на почт, оставьте пустым
-/*Конфигурация SMTP*/
-define("SMTP_USERNAME", '');  //Смените на имя своего почтового ящика.
-define("SMTP_PORT", 25); // Порт работы. Не меняйте, если не уверены.
-define("SMTP_HOST", '');  //сервер для отправки почты
-define("SMTP_PASSWORD", '');  //Измените пароль
-define("SMTP_DEBUG", true);  //Если Вы хотите видеть сообщения ошибок, укажите true вместо false
-define("SMTP_CHARSET", 'utf-8');  //кодировка сообщений. (windows-1251 или UTF-8, итд)
-define("SMTP_FROM", 'Сканер файлов');
+define('ROOT_DIR', rtrim($config['root_dir'], '/\\'));
+define('DB_NAME', $config['db_name']);
+define('USER', $config['db_user']);
+define('PASSWORD', $config['db_password']);
+define('HOST', $config['db_host']);
 
+define('EXCLUDED_DIRS', $config['excluded_dirs']);
+define('DEPTH_LEVEL', (int) $config['depth_level']);
+define('FILES_EXTENSION', $config['files_extension']);
+
+define('DIRS_TABLE_NAME', $config['dirs_table_name']);
+define('FILES_TABLE_NAME', $config['files_table_name']);
+
+define('EMAIL', $config['email']);
+define('SMTP_USERNAME', $config['smtp_username']);
+define('SMTP_PORT', (int) $config['smtp_port']);
+define('SMTP_HOST', $config['smtp_host']);
+define('SMTP_PASSWORD', $config['smtp_password']);
+define('SMTP_DEBUG', (bool) $config['smtp_debug']);
+define('SMTP_CHARSET', $config['smtp_charset']);
+define('SMTP_FROM', $config['smtp_from']);
+
+define('EMAIL_SUBJECT', $config['email_subject']);
 
 /*дальше ничего не трогать*/
 
@@ -196,9 +240,9 @@ class Scanner
 			if (count($new_dirs)) {
 				$values = '';
 				$i = 0;
-				foreach ($new_dirs as $dir) {
-					$values .= ($i > 0 ? ', ' : '') . '(' . $dir_id . ', ' . $this->_pdo->quote($dir) . ')';
-					$this->new_files[] = $dir;
+				foreach ($new_dirs as $newDirPath) {
+					$values .= ($i > 0 ? ', ' : '') . '(' . $dir_id . ', ' . $this->_pdo->quote($newDirPath) . ')';
+					$this->new_files[] = $newDirPath;
 					$i++;
 				}
 				$result = $this->_pdo->exec('INSERT INTO ' . DIRS_TABLE_NAME . ' (parent_id, path) VALUES ' . $values);
@@ -208,9 +252,9 @@ class Scanner
 			if (count($del_dirs)) {
 				$wheres = '';
 				$i = 0;
-				foreach ($del_dirs as $dir) {
-					$wheres .= ($i > 0 ? ', ' : '') . $this->_pdo->quote($dir);
-					$this->remove_files[] = $dir;
+				foreach ($del_dirs as $removedDirPath) {
+					$wheres .= ($i > 0 ? ', ' : '') . $this->_pdo->quote($removedDirPath);
+					$this->remove_files[] = $removedDirPath;
 					$i++;
 				}
 				$result = $this->_pdo->exec('DELETE FROM  ' . DIRS_TABLE_NAME . ' WHERE path IN (' . $wheres . ')');
@@ -377,6 +421,7 @@ class Scanner
 		$new_messages = array();
 
 		$server_parse = function ($socket, $response, $line = __LINE__) {
+			$server_response = '';
 			while (@substr($server_response, 3, 1) != ' ') {
 				if (!($server_response = fgets($socket, 256))) {
 					if (SMTP_DEBUG) throw new Exception($server_response);
@@ -527,13 +572,13 @@ if (count($scanner->files_chang)) {
 if (strlen(EMAIL) && !empty($body)) {
 	if (strlen(SMTP_USERNAME) && strlen(SMTP_HOST) && strlen(SMTP_PASSWORD)) {
 		try {
-			$result = Scanner::sendMail(EMAIL, 'Изминения на сайте art-talant.org', $body);
+			$result = Scanner::sendMail(EMAIL, EMAIL_SUBJECT, $body);
 		} catch (Exception $e) {
 			print_r('Line ' . $e->getLine() . ': ' . $e->getMessage());
 		}
 	} else {
 		$headers = "Content-type: text/html; charset=utf-8 \r\n";
-		$reult = mail(EMAIL, 'Изминения на сайте art-talant.org', $body, $headers);
+		$reult = mail(EMAIL, EMAIL_SUBJECT, $body, $headers);
 	}
 }
 

@@ -1,68 +1,74 @@
 # AI-Bolit
 
-The AI-Bolit scanner is probably the most effective tool for webmasters and site administrators to search for viruses and malicious code
+Сканер **AI-Bolit** для поиска вредоносного и подозрительного кода в файлах сайта (режим CLI и веб).
 
-## How to operate the AI-BOLIT scanner from the command line
+## Требования
 
-> ⚠ Order site treatment and protection against hacking from [experts](https://palpalych.ru/).
+- **PHP 8.0+** (рекомендуется актуальный PHP 8.2/8.3)
+- Расширения: желательно `mbstring`; для `scanner.php` нужны `pdo_mysql` и доступ к MySQL
 
-The greatest functionality is available when running AI-BOLIT scanner in command line mode. This can be done either locally on a Windows/Unix/Mac OS X computer or directly on the hosting, if you have SSH access and the hosting does not limit the CPU resources consumed.
+## Основной сканер (`ai-bolit.php`)
 
-Show help
+Справка по аргументам:
 
-`php ai-bolit.php --help`
+```bash
+php ai-bolit.php --help
+```
 
-Run the scanner in "paranoid" mode (recommended to get the most detailed report)
+Примеры:
 
-`php ai-bolit.php --mode=2`
+```bash
+php ai-bolit.php --mode=2
+php ai-bolit.php --mode=1
+php ai-bolit.php --path=/path/to/site/public_html/
+php ai-bolit.php --memory=512M --size=900K --delay=500
+```
 
-Run the scanner in "Expert" mode (recommended for infection assessment)
+Рядом с `ai-bolit.php` должна лежать база **`AIBOLIT-WHITELIST.db`**, если вы используете белые списки из комплекта.
 
-`php ai-bolit.php --mode=1`
+### Веб-доступ
 
-Check one file "pms.db" for malicious code
+В начале `ai-bolit.php` задайте константу `PASS` вместо плейсхолдера `????????????????`, иначе при открытии из браузера скрипт завершится с `Forbidden`.
 
-`php ai-bolit.php -jpms.db`
+### Лицензия и использование
 
-Start the scanner with 512Mb memory installed
+В шапке `ai-bolit.php` указаны ограничения правообладателя (коммерческое использование, исходный код и сигнатуры). Соблюдайте условия, на которых вы получили продукт.
 
-`php ai-bolit.php --memory=512M`
+## Вспомогательный сканер каталога (`scanner.php`)
 
-Установить максимальный размер проверяемого файла 900Kb
+Скрипт обходит дерево файлов, сохраняет структуру в MySQL и может отправить отчёт о новых/удалённых/изменённых файлах.
 
-`php ai-bolit.php --size=900K`
+**Секреты не хранятся в репозитории.** Скопируйте пример конфигурации и отредактируйте под себя:
 
-Pause 500ms between files during scanning (to reduce load)
+```bash
+cp scanner.config.example.php scanner.config.php
+```
 
-`php ai-bolit.php --delay=500`
+В PowerShell: `Copy-Item scanner.config.example.php scanner.config.php`
 
-Upload .aknown files from wordpress when scanning (the known_files directory should be in the same directory as ai-boilit.php)
+Файл `scanner.config.php` перечислен в `.gitignore` и не должен коммититься.
 
-`php ai-bolit.php --cms=wordpress`
+### Утечки в истории Git
 
-Email the scan report to myreport@mail.ru
+Ранее в репозитории могли оказаться реальные пароли или пути. После перехода на `scanner.config.php` **смените пароли БД и другие секреты**. Если репозиторий публичный, рассмотрите очистку истории (`git filter-repo` / BFG) — обычный коммит не удаляет старые значения из прошлых ревизий.
 
-`php ai-bolit.php --report=myreport@mail.ru`
+## Прочее
 
-Create a report in the file /home/scanned/report_site1.html
+- В корне лежит `.gitignore` (IDE, локальный конфиг сканера, `.env`).
+- Опечатка в старых инструкциях: имя файла **`ai-bolit.php`**, не `ai-boilit.php`.
 
-`php ai-bolit.php --report=/home/scanned/report_site1.html`
+### English (CLI quick reference)
 
-Scan the /home/s/site1/public_html/ directory (the report will be created in this directory by default if the --report=report_file option is not set)
+Full CLI power is available when running AI-Bolit locally or over SSH. Examples:
 
-`php ai-bolit.php --path=/home/s/site1/public_html/`
+```bash
+php ai-bolit.php --help
+php ai-bolit.php --mode=2
+php ai-bolit.php --path=/home/user/site/public_html/ --mode=2 --cms=wordpress
+```
 
-Get the report in plain-text with the name site1.txt
+Batch scan of multiple site roots (Linux / macOS):
 
-`php ai-bolit.php -lsite1.txt`
-
-You can combine calls, for example,
-
-`php ai-bolit.php --size=300K --path=/home/s/site1/public_html/ --mode=2 --cms=wordpress`
-
-By combining the AI-BOLIT scanner call with other unix commands, you can perform, for example, a batch scan of sites. Here is an example of checking several sites within an account. For example, if the sites are located inside the /var/www/user1/data/www directory, the command to run the scanner would be
-
-`find /var/www/user1/data/www -maxdepth 1 -type d -exec php ai-bolit.php --path={} --mode=2 \;`
-
-By adding the --report parameter you can control the directory where the scan reports will be generated.
- 
+```bash
+find /var/www/user/data/www -maxdepth 1 -type d -exec php ai-bolit.php --path={} --mode=2 \;
+```
